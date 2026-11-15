@@ -10,7 +10,8 @@
     "watch": "node build.mjs --watch",
     "types": "orca plugin types .",
     "typecheck": "tsc -p .",
-    "validate": "orca plugin validate ."
+    "validate": "orca plugin validate .",
+    "reinstall": "node reinstall.mjs"
   },
   "devDependencies": {
     "dompurify": "3.4.17",

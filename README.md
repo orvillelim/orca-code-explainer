@@ -94,15 +94,25 @@ After any answer you can ask a follow-up, click a suggested question, stop the a
 
 ## Install
 
-**From Orca's plugin directory:** search for *Code Explainer*, or open `orca://plugins/orvillelim.code-explainer?catalog=community`. Orca shows what the plugin can access before you approve it; see [Access and permissions](#access-and-permissions).
+**From Orca's plugin directory:** search for *Code Explainer*, or open `orca://plugins/orvillelim.code-explainer?catalog=community`. Orca shows what the plugin can access before you approve it; see [Privacy and safety](#privacy-and-safety).
 
-**From source:**
+**From GitHub**, pinned to the newest release (add `@v1.0.2` to pick one):
+
+```sh
+orca plugin install orvillelim/orca-code-explainer                         # shows its access, prints a fingerprint
+orca plugin install orvillelim/orca-code-explainer --approve <fingerprint>
+```
+
+**From a local copy**, such as one you've changed:
 
 ```sh
 git clone https://github.com/orvillelim/orca-code-explainer.git
-orca plugin install ./orca-code-explainer       # prints a fingerprint
-orca plugin install ./orca-code-explainer --approve <fingerprint>
+cd orca-code-explainer
+npm install
+npm run reinstall    # builds, shows its access, installs once you answer y
 ```
+
+Run `npm run reinstall` again after each change; it replaces the installed copy. Don't use `orca plugin install .` in this folder: Orca refuses the symlinks that `npm install` puts in `node_modules`, so the script installs a clean copy of the plugin's files instead.
 
 You need Orca 1.4.256 or newer, and the [Claude Code](https://docs.anthropic.com/en/docs/claude-code) or [Codex](https://github.com/openai/codex) CLI installed and signed in. Settings → Plugins → Code Explainer chooses the agent and how many lines around the selection to send.
 
@@ -199,6 +209,7 @@ npm run build        # bundles dist/ (npm run watch for unminified rebuilds)
 npm run types        # writes Orca's plugin typings into .orca/
 npm run typecheck
 orca plugin dev load .   # loads this folder into Orca; rebuilds apply on their own
+npm run reinstall    # builds and installs this folder as the copy Orca runs
 ```
 
 

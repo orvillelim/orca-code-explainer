@@ -1,0 +1,1 @@
+GDScript, Godot resource and Godot shader TextMate grammars, MIT licensed (see LICENSE). They come from the [Godot VS Code plugin](https://github.com/godotengine/godot-vscode-plugin), as vendored by Orca's official Godot syntax plugin ([stablyai/orca-plugins `plugins/godot`](https://github.com/stablyai/orca-plugins/tree/main/plugins/godot), 1.0.0).

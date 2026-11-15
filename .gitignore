@@ -1,0 +1,4 @@
+node_modules/
+.orca/
+.DS_Store
+# dist/ is committed on purpose: Orca installs the repository as it is and never builds it.

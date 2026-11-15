@@ -1,0 +1,16 @@
+{
+  "extends": "./.orca/types/tsconfig.json",
+  "include": [
+    "src"
+  ],
+  "compilerOptions": {
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "lib": [
+      "ES2022",
+      "ESNext.Disposable",
+      "DOM",
+      "DOM.Iterable"
+    ]
+  }
+}

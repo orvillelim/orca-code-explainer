@@ -1,0 +1,152 @@
+{
+  "manifestVersion": 2,
+  "execution": "trusted-worker",
+  "id": "code-explainer",
+  "name": "Code Explainer",
+  "version": "1.0.0",
+  "description": "Highlight code and Claude Code or Codex explains it: a quick overview, a call hierarchy, or an interactive flowchart you step through. Reads your project read-only.",
+  "author": {
+    "name": "orvillelim",
+    "url": "https://github.com/orvillelim"
+  },
+  "repository": "https://github.com/orvillelim/orca-code-explainer",
+  "license": "MIT",
+  "engines": {
+    "orca": ">=1.4.256"
+  },
+  "pluginApi": 1,
+  "main": "worker/main.mjs",
+  "contributes": {
+    "customEditors": [
+      {
+        "id": "code",
+        "title": "Code Explainer",
+        "priority": "default",
+        "frame": "isolated",
+        "contentKind": "text",
+        "entry": "dist/editor.html",
+        "extensions": [
+          ".ts",
+          ".tsx",
+          ".js",
+          ".jsx",
+          ".mjs",
+          ".cjs",
+          ".py",
+          ".go",
+          ".rs",
+          ".java",
+          ".kt",
+          ".swift",
+          ".c",
+          ".h",
+          ".cpp",
+          ".hpp",
+          ".cs",
+          ".rb",
+          ".php",
+          ".sh",
+          ".sql",
+          ".lua",
+          ".scala",
+          ".dart",
+          ".vue",
+          ".svelte",
+          ".json",
+          ".md",
+          ".yaml",
+          ".yml",
+          ".toml",
+          ".css"
+        ]
+      },
+      {
+        "id": "godot",
+        "title": "Code Explainer",
+        "priority": "default",
+        "frame": "isolated",
+        "contentKind": "text",
+        "entry": "dist/editor.html",
+        "extensions": [
+          ".gd",
+          ".gdshader",
+          ".gdshaderinc",
+          ".tscn",
+          ".tres",
+          ".escn",
+          ".godot",
+          ".gdextension"
+        ]
+      }
+    ],
+    "settings": [
+      {
+        "key": "provider",
+        "title": "Agent",
+        "description": "Who explains the code. A workspace's conversation keeps the agent it started with until New conversation.",
+        "type": "string",
+        "enum": [
+          "claude",
+          "codex"
+        ],
+        "enumLabels": [
+          "Claude Code",
+          "Codex"
+        ],
+        "default": "claude"
+      },
+      {
+        "key": "contextLines",
+        "title": "Surrounding lines",
+        "description": "Lines above and below the selection sent with it.",
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 200,
+        "default": 20
+      }
+    ]
+  },
+  "capabilities": [
+    {
+      "kind": "workspace:read"
+    },
+    {
+      "kind": "storage:own"
+    },
+    {
+      "kind": "settings:own"
+    }
+  ],
+  "icon": "media/icon.png",
+  "cover": {
+    "path": "media/cover.png",
+    "alt": "Code Explainer: the selection menu with Explain, Call hierarchy and Interactive, next to an interactive flowchart of a loop."
+  },
+  "screenshots": [
+    {
+      "path": "media/screenshots/1-menu.png",
+      "alt": "A loop selected in the editor with the stacked menu open: Explain, Call hierarchy and Interactive, each with its shortcut.",
+      "caption": "Highlight code, pick one of three ways to explain it"
+    },
+    {
+      "path": "media/screenshots/2-explain.png",
+      "alt": "The explain pane showing a high-level overview of the selected loop: In short, What it is for, Where it fits, Inputs and outputs, Ask next.",
+      "caption": "Explain: a quick overview of what the code is for"
+    },
+    {
+      "path": "media/screenshots/3-call-hierarchy.png",
+      "alt": "The explain pane showing a text call tree of the selected loop with file and line notes.",
+      "caption": "Call hierarchy: who calls what, as a tree"
+    },
+    {
+      "path": "media/screenshots/4-interactive-steps.png",
+      "alt": "An interactive flowchart of the loop at step 4 of 8, with the active boxes highlighted and the variable values listed.",
+      "caption": "Interactive: step through the code as a flowchart"
+    },
+    {
+      "path": "media/screenshots/5-interactive-state.png",
+      "alt": "The interactive flowchart switched to the state iteration 3, with lines 3 to 7 highlighted in the editor.",
+      "caption": "Jump between states; the editor highlights each step\u2019s lines"
+    }
+  ]
+}

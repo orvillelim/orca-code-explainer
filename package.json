@@ -1,0 +1,25 @@
+{
+  "name": "orca-code-explainer",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Orca plugin: highlight code and Claude Code or Codex explains it: an overview, a call hierarchy, or an interactive walkthrough.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "node build.mjs --watch",
+    "types": "orca plugin types .",
+    "typecheck": "tsc -p .",
+    "validate": "orca plugin validate ."
+  },
+  "devDependencies": {
+    "dompurify": "3.4.17",
+    "esbuild": "0.28.2",
+    "marked": "17.0.6",
+    "mermaid": "11.17.2",
+    "monaco-editor": "0.55.1",
+    "shiki": "4.6.0",
+    "typescript": "^5.9.0",
+    "vscode-oniguruma": "2.0.1"
+  }
+}

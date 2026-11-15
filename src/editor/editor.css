@@ -1,0 +1,619 @@
+/*
+ * Palette. Dark mode uses the Code Explainer palette; light mode keeps Orca's own colors, since
+ * the palette is dark-only. Everything below reads these roles, never raw colors.
+ */
+:root {
+  --pane-width: 380px;
+  --radius-sm: calc(var(--orca-radius, 0.5rem) - 2px);
+  --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --bg: var(--orca-background);
+  --panel: var(--orca-card);
+  --line: var(--orca-border);
+  --ink: var(--orca-foreground);
+  --muted: var(--orca-muted-foreground);
+  --heat: #c45f0a;
+  --aim: #0e7f99;
+  --ok: #2f8a3e;
+  --bad: var(--orca-destructive);
+  --key: var(--orca-secondary);
+  --key-line: var(--orca-border);
+  --code-ink: #a4501a;
+  --on-heat: #ffffff;
+}
+html.dark {
+  --bg: #0f141b;
+  --panel: #161d27;
+  --line: #2a3542;
+  --ink: #dbe3ec;
+  --muted: #8a99aa;
+  --heat: #ff9a3c;
+  --aim: #5ccfe6;
+  --ok: #7fd18b;
+  --bad: #ff5d5d;
+  --key: #222c38;
+  --key-line: #3a4756;
+  --code-ink: #ffc49b;
+  --on-heat: #0f141b;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--ink);
+  font:
+    13px/1.5 system-ui,
+    -apple-system,
+    'Segoe UI',
+    sans-serif;
+}
+[hidden] {
+  display: none !important;
+}
+:focus-visible {
+  outline: 1px solid var(--aim);
+  outline-offset: 1px;
+}
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--key-line) transparent;
+}
+
+/* Layout: editor | splitter | pane */
+.layout {
+  display: flex;
+  height: 100vh;
+}
+#editor {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.splitter {
+  flex: 0 0 4px;
+  cursor: col-resize;
+  background: var(--bg);
+  border-left: 1px solid var(--line);
+}
+.splitter:hover {
+  background: var(--key-line);
+}
+.pane {
+  flex: 0 0 var(--pane-width);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+/* Header and controls */
+/* Zoom: the pane scales as a whole, wider included, as a browser zoom does; the selection menu
+   scales with the editor's font. Both set by editor-zoom.ts. */
+.pane {
+  zoom: var(--pane-zoom, 1);
+}
+.explain-menu {
+  zoom: var(--hint-zoom, 1);
+}
+.pane-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+}
+.pane-title {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.pane-title::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin: 0 7px 1px 2px;
+  border-radius: 50%;
+  background: var(--heat);
+}
+.pane-select,
+.pane-input,
+.pane-button,
+.pane-chip {
+  font: inherit;
+  color: var(--ink);
+  background: var(--key);
+  border: 1px solid var(--key-line);
+  border-radius: var(--radius-sm);
+}
+.pane-select {
+  height: 26px;
+  padding: 0 4px;
+}
+.pane-button {
+  flex-shrink: 0;
+  white-space: nowrap;
+  font-size: 12px;
+  height: 26px;
+  padding: 0 9px;
+  cursor: pointer;
+}
+.pane-button:hover:not(:disabled) {
+  border-color: var(--muted);
+}
+.pane-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.pane-primary {
+  color: var(--on-heat);
+  background: var(--heat);
+  border-color: var(--heat);
+  font-weight: 600;
+}
+.pane-primary:hover:not(:disabled) {
+  border-color: var(--heat);
+  filter: brightness(1.08);
+}
+.pane-composer .pane-button:not(.pane-primary) {
+  color: var(--bad);
+  border-color: color-mix(in srgb, var(--bad) 55%, transparent);
+}
+.pane-icon {
+  width: 26px;
+  padding: 0;
+  color: var(--muted);
+}
+.pane-subheader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 8px;
+  border-bottom: 1px solid var(--line);
+}
+.pane-zoom {
+  display: flex;
+  flex-shrink: 0;
+  gap: 2px;
+}
+.pane-zoom .pane-button {
+  height: 20px;
+  padding: 0 6px;
+  font-size: 11px;
+}
+.pane-zoom .pane-icon {
+  width: 20px;
+  padding: 0;
+}
+.pane-zoom-level {
+  min-width: 42px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.pane-file {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--aim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Transcript */
+.pane-transcript {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 12px;
+}
+.pane-empty,
+.muted {
+  color: var(--muted);
+}
+.turn {
+  margin: 0 0 14px;
+}
+.turn-user {
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+}
+.turn-source {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--aim);
+}
+.turn-text {
+  white-space: pre-wrap;
+  max-height: 8em;
+  overflow: hidden;
+}
+.turn-tools {
+  margin-bottom: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.turn-tools summary {
+  color: var(--ok);
+  cursor: pointer;
+}
+.turn-tool {
+  font-family: var(--font-mono);
+  padding-left: 12px;
+}
+.turn-note {
+  font-size: 11px;
+  color: var(--muted);
+}
+.turn-error .turn-markdown {
+  color: var(--bad);
+}
+
+/* Answers: short lines, clear rhythm, and code that stands out from prose. */
+.turn-markdown {
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.turn-markdown > :first-child {
+  margin-top: 0;
+}
+.turn-markdown p {
+  margin: 0 0 10px;
+}
+/* The "In short" lead line reads as a callout. */
+.turn-markdown > p:first-child:has(> strong:first-child) {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--heat);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+}
+.turn-markdown h1,
+.turn-markdown h2,
+.turn-markdown h3,
+.turn-markdown h4 {
+  margin: 18px 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--heat);
+}
+.turn-markdown ul,
+.turn-markdown ol {
+  margin: 0 0 10px;
+  padding-left: 18px;
+}
+.turn-markdown li {
+  margin: 0 0 6px;
+}
+.turn-markdown li::marker {
+  color: var(--muted);
+}
+.turn-markdown strong {
+  font-weight: 600;
+  color: var(--ink);
+}
+.turn-markdown :not(pre) > code {
+  padding: 1px 5px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+  color: var(--code-ink);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.turn-markdown pre {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+}
+.turn-markdown pre code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre;
+}
+.turn-markdown pre .tok-comment {
+  color: var(--muted);
+  font-style: italic;
+}
+.turn-markdown pre .tok-keyword {
+  color: var(--heat);
+}
+.turn-markdown pre .tok-string {
+  color: var(--ok);
+}
+.turn-markdown pre .tok-number {
+  color: var(--code-ink);
+}
+.turn-markdown pre .tok-type {
+  color: var(--aim);
+}
+.turn-markdown pre .tok-function {
+  font-weight: 600;
+}
+.turn-markdown pre .tok-punctuation {
+  color: var(--muted);
+}
+.turn-markdown pre .tok-invalid {
+  color: var(--bad);
+}
+.turn-markdown blockquote {
+  margin: 0 0 10px;
+  padding-left: 10px;
+  border-left: 2px solid var(--line);
+  color: var(--muted);
+}
+.turn-markdown a {
+  color: var(--aim);
+}
+.turn-markdown hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+/* "Ask next": the agent's own follow-ups, clickable. */
+.turn-markdown .ask-next {
+  list-style: none;
+  padding-left: 0;
+}
+.turn-markdown .ask-next li {
+  margin: 0 0 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.turn-markdown .ask-next li::before {
+  content: '→';
+  margin-right: 7px;
+  color: var(--aim);
+}
+.turn-markdown .ask-next li:hover,
+.turn-markdown .ask-next li:focus-visible {
+  border-color: var(--aim);
+  background: var(--panel);
+  outline: none;
+}
+
+/* Interactive walkthrough (walkthrough.ts) */
+.wt {
+  margin: 0 0 12px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+}
+.wt:focus-visible {
+  outline: 1px solid var(--aim);
+}
+.wt-title {
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+.wt-states {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.wt-state {
+  font: inherit;
+  font-size: 11px;
+  padding: 2px 9px;
+  color: var(--ink);
+  background: var(--key);
+  border: 1px solid var(--key-line);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.wt-state:hover {
+  border-color: var(--aim);
+}
+.wt-state-active {
+  color: var(--on-heat);
+  background: var(--heat);
+  border-color: var(--heat);
+}
+.wt-diagram {
+  max-height: min(52vh, 420px);
+  overflow: auto;
+  margin-top: 8px;
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
+  text-align: center;
+}
+.wt-diagram svg {
+  display: block;
+  margin: 0 auto;
+}
+.wt-diagram .node > :is(rect, polygon, circle, ellipse, path) {
+  transition:
+    stroke 120ms,
+    fill 120ms;
+}
+.wt-diagram .wt-visited > :is(rect, polygon, circle, ellipse, path) {
+  stroke: var(--aim) !important;
+  stroke-opacity: 0.55;
+}
+.wt-diagram .wt-active > :is(rect, polygon, circle, ellipse, path) {
+  stroke: var(--heat) !important;
+  stroke-width: 2.5px !important;
+  fill: color-mix(in srgb, var(--heat) 22%, var(--panel)) !important;
+}
+.wt-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 6px;
+}
+.wt-counter {
+  flex: 1;
+  text-align: center;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.wt-note {
+  margin: 0 0 6px;
+}
+.wt-lines {
+  margin-bottom: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--aim);
+}
+.wt-vars {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.wt-vars th,
+.wt-vars td {
+  padding: 2px 6px;
+  border-top: 1px solid var(--line);
+  text-align: left;
+  font-weight: normal;
+}
+.wt-vars th {
+  width: 40%;
+  color: var(--muted);
+}
+.wt-vars .wt-changed td {
+  color: var(--code-ink);
+}
+.wt-error {
+  color: var(--bad);
+  font-size: 12px;
+}
+/* The step's lines in the editor (Monaco decorations). */
+.monaco-editor .wt-line {
+  background: color-mix(in srgb, var(--heat) 14%, transparent);
+}
+.monaco-editor .wt-line-gutter {
+  border-left: 3px solid var(--heat);
+  margin-left: 3px;
+}
+
+/* Errors, suggestions, composer */
+.pane-error {
+  margin: 0 12px 8px;
+  padding: 6px 9px;
+  border: 1px solid var(--bad);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--bad) 10%, transparent);
+  color: var(--bad);
+  white-space: pre-wrap;
+}
+.pane-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 12px 8px;
+}
+.pane-chip {
+  font-size: 12px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.pane-chip:hover {
+  border-color: var(--aim);
+}
+.pane-composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--line);
+}
+.pane-input {
+  flex: 1;
+  resize: none;
+  padding: 5px 7px;
+  background: var(--panel);
+  border-color: var(--line);
+}
+.pane-input::placeholder {
+  color: var(--muted);
+}
+.pane-input:focus {
+  border-color: var(--aim);
+  outline: none;
+}
+.pane-footer {
+  padding: 0 12px 7px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* The selection menu: Explain, Call hierarchy, Interactive, stacked under the selection. */
+.explain-menu {
+  display: flex;
+  flex-direction: column;
+  min-width: 190px;
+  margin-top: 4px;
+  overflow: hidden;
+  background: var(--key);
+  border: 1px solid var(--key-line);
+  border-left: 2px solid var(--heat);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 6px 16px rgb(0 0 0 / 0.35);
+}
+.explain-menu-item {
+  display: flex;
+  box-sizing: border-box;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font:
+    12px/1.2 system-ui,
+    -apple-system,
+    'Segoe UI',
+    sans-serif;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.explain-menu-item + .explain-menu-item {
+  border-top: 1px solid var(--key-line);
+}
+.explain-menu-item:hover,
+.explain-menu-item:focus-visible {
+  background: color-mix(in srgb, var(--heat) 14%, var(--key));
+  outline: none;
+}
+.explain-menu-glyph {
+  width: 12px;
+  text-align: center;
+  color: var(--muted);
+}
+.explain-menu-item:hover .explain-menu-glyph {
+  color: var(--heat);
+}
+.explain-menu-label {
+  flex: 1;
+}
+.explain-menu-keys {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--muted);
+}

@@ -92,7 +92,7 @@ After any answer you can ask a follow-up, click a suggested question, stop the a
 
 ## Install
 
-**From Orca's plugin directory:** search for *Code Explainer*, or open `orca://plugins/orvillelim.code-explainer?catalog=community`. Orca shows what the plugin can access before you approve it.
+**From Orca's plugin directory:** search for *Code Explainer*, or open `orca://plugins/orvillelim.code-explainer?catalog=community`. Orca shows what the plugin can access before you approve it; see [Access and permissions](#access-and-permissions).
 
 **From source:**
 
@@ -127,6 +127,41 @@ Plain ⌘= / ⌘- don't reach plugins on Orca 1.4.256. Newer Orca versions pass 
 - **The interactive diagram is data, not code.** The agent writes it as JSON. The plugin validates it and draws it with Mermaid in strict mode, using Orca's own sanitizer.
 
 Local workspaces only: projects on SSH hosts aren't supported yet.
+
+### What runs
+
+- **Your agent's CLI**, `claude` or `codex`, from your `PATH` (or `~/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin`). It starts for each question, signs in with your own login, and exits when the answer is done.
+  - Its own file, shell and web tools are off. Its only tools are the plugin's three read-only ones: list, read and search project files.
+  - It runs in an empty folder (`~/Library/Caches/orca-code-explainer/agents/…` on macOS), not in your project. It doesn't load your CLI settings, hooks or other MCP servers; your sign-in still works.
+- **A local MCP server, `code_explainer`**, inside the plugin's own process. It's how the agent reads your project.
+  - It listens on `127.0.0.1` only, on a random port, so other computers can't reach it.
+  - It has three read-only tools: `list_project_files`, `read_project_file` and `search_project_code`.
+  - The agent gets it for one answer at a time, when the plugin starts the CLI. It's never added to your Claude Code or Codex MCP settings.
+  - Each answer gets a new random token that opens only its own project, and the token is revoked when the answer ends. Requests without it are refused.
+
+### What it reads
+
+- **The open file's location.** Orca doesn't tell plugins the file's path, so the plugin looks through your local workspaces, the focused one first, for the file with the same text. It only opens files of the right size, and the comparison happens on your computer.
+- **Project instructions:** `CLAUDE.md` for Claude Code or `AGENTS.md` for Codex, from the project root and the folders down to the selected file. At the root it falls back to the other file when yours is missing.
+- **Files the agent asks for**, through the file server, inside that project only.
+
+### What leaves your computer
+
+Only what your agent sends to its provider (Anthropic or OpenAI) under your account: your selection with the lines around it (20 above and below by default; Settings → Surrounding lines), the questions you type, the project instructions, and the files the agent reads. The plugin itself makes no internet requests.
+
+### What it saves
+
+- **Conversations**, in Orca's storage for the plugin: the last 30 messages of each workspace (about 15 questions and their answers), the agent session to resume, and which instruction files were already sent. **New conversation** clears them.
+- **The agent's working folder**, one per workspace, in the cache folder above.
+- Claude Code and Codex keep their own session history, as they always do. That's how a conversation continues from one question to the next.
+
+Nothing is written to your project.
+
+### What it never does
+
+- Change your projects: neither the plugin nor the agent edits, creates or deletes files in them.
+- Run anything besides your agent's CLI, and the agent itself can't run commands.
+- Let the agent read outside the project folder (symlinks included), binary files, files over 1 MB, or files named like secrets.
 
 ## How it works
 
@@ -170,7 +205,7 @@ orca plugin dev load .   # loads this folder into Orca; rebuilds apply on their 
 2. Run `orca plugin validate .`, then `orca plugin release-entry .` to print the pinned commit and content hash.
 3. Tag the release and push the tag: `git tag -a v1.0.0 -m v1.0.0 && git push origin v1.0.0`.
 4. For the first release only, add the `orca-plugin` topic: `gh repo edit orvillelim/orca-code-explainer --add-topic orca-plugin`.
-5. Check the listing at `https://orca.dev/plugins/orvillelim/orca-code-explainer`.
+5. Check the listing at `https://www.onorca.dev/plugins/orvillelim/orca-code-explainer`.
 
 ## License
 

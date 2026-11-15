@@ -21,6 +21,30 @@ const TOKEN_ENV = 'ORCA_CODE_EXPLAINER_TOKEN'
 
 const isWindows = process.platform === 'win32'
 
+const AGENT_NAMES = { claude: 'Claude Code', codex: 'Codex' }
+/**
+ * Effort levels each CLI takes; the settings' `default` leaves the CLI's own. Codex's `ultra`
+ * is left out: it hands work to sub-agents, which this plugin turns off.
+ */
+const EFFORTS = {
+  claude: ['low', 'medium', 'high', 'xhigh', 'max'],
+  codex: ['low', 'medium', 'high', 'xhigh', 'max']
+}
+// A model alias or name. Why checked though Settings offer a list: Windows runs .cmd shims
+// through a shell, so nothing else may reach the command line.
+const MODEL_NAME = /^[A-Za-z0-9][A-Za-z0-9._:/[\]-]{0,99}$/
+
+/** The model and effort settings for `provider`, as CLI options; null leaves the CLI's default. */
+export function agentOptions(provider, { model, effort }) {
+  const name = typeof model === 'string' && model.trim() !== 'default' ? model.trim() : ''
+  if (name && !MODEL_NAME.test(name)) {
+    throw new Error(
+      `"${name}" in Settings → Plugins → Code Explainer → ${AGENT_NAMES[provider]} model isn't a model name.`
+    )
+  }
+  return { model: name || null, effort: EFFORTS[provider].includes(effort) ? effort : null }
+}
+
 function extraBinDirs() {
   const home = homedir()
   return isWindows
@@ -68,7 +92,7 @@ export function agentDirectory(key) {
   return directory
 }
 
-function claudeArgs({ mcp, sessionId, resume }) {
+function claudeArgs({ mcp, sessionId, resume, model, effort }) {
   const mcpConfig = {
     mcpServers: {
       code_explainer: {
@@ -100,11 +124,13 @@ function claudeArgs({ mcp, sessionId, resume }) {
     '--disable-slash-commands',
     '--append-system-prompt',
     EXPLAINER_INSTRUCTIONS,
+    ...(model ? ['--model', model] : []),
+    ...(effort ? ['--effort', effort] : []),
     ...(resume ? ['--resume', sessionId] : ['--session-id', sessionId])
   ]
 }
 
-function codexArgs({ mcp, sessionId, resume, cwd }) {
+function codexArgs({ mcp, sessionId, resume, cwd, model, effort }) {
   const quote = (value) => JSON.stringify(value)
   // Why each feature by name: Codex turns new tools on by default, and the agent must only read
   // through code_explainer. `code_mode_host` stays on: codex-cli 0.169 calls MCP tools through it.
@@ -132,10 +158,18 @@ function codexArgs({ mcp, sessionId, resume, cwd }) {
     'approval_policy="never"',
     `mcp_servers.code_explainer.url=${quote(mcp.url)}`,
     `mcp_servers.code_explainer.bearer_token_env_var=${quote(TOKEN_ENV)}`,
-    `developer_instructions=${quote(EXPLAINER_INSTRUCTIONS)}`
+    `developer_instructions=${quote(EXPLAINER_INSTRUCTIONS)}`,
+    ...(effort ? [`model_reasoning_effort=${quote(effort)}`] : [])
   ].flatMap((entry) => ['-c', entry])
   // Why --ignore-user-config: no MCP server, plugin or hook from config.toml joins; login still works.
-  const common = ['--json', '--skip-git-repo-check', '--ignore-user-config', ...config]
+  // It also drops config.toml's model, so the model comes from the plugin's settings.
+  const common = [
+    '--json',
+    '--skip-git-repo-check',
+    '--ignore-user-config',
+    ...(model ? ['--model', model] : []),
+    ...config
+  ]
   return resume
     ? ['exec', ...common, 'resume', sessionId, '-']
     : ['exec', ...common, '--sandbox', 'read-only', '-C', cwd, '-']
@@ -195,7 +229,10 @@ function codexEvents(line, events) {
  * Starts one agent turn. `events`: onSession(id), onDelta(text), onParagraph(), onMessage(id, text),
  * onFinal(text|null), onError(message), onExit(code, stderrTail).
  */
-export function runAgentTurn({ provider, prompt, sessionId, resume, cwd, mcp }, events) {
+export function runAgentTurn(
+  { provider, prompt, sessionId, resume, cwd, mcp, model = null, effort = null },
+  events
+) {
   const command = findExecutable(provider)
   if (!command) {
     throw new Error(
@@ -204,8 +241,8 @@ export function runAgentTurn({ provider, prompt, sessionId, resume, cwd, mcp }, 
   }
   const args =
     provider === 'claude'
-      ? claudeArgs({ mcp, sessionId, resume })
-      : codexArgs({ mcp, sessionId, resume, cwd })
+      ? claudeArgs({ mcp, sessionId, resume, model, effort })
+      : codexArgs({ mcp, sessionId, resume, cwd, model, effort })
   const shim = isWindows && /\.(cmd|bat)$/i.test(command)
   const child = shim
     ? spawn([quoteForCmd(command), ...args.map(quoteForCmd)].join(' '), {

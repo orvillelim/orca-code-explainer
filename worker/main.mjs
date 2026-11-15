@@ -1,7 +1,7 @@
 // Code Explainer worker: one conversation per workspace, explained by the Claude Code or Codex CLI,
 // whose only tools read that project folder (read-only, inside the folder, secrets excluded).
 import { createHash, randomUUID } from 'node:crypto'
-import { agentDirectory, runAgentTurn } from './agent-cli.mjs'
+import { agentDirectory, agentOptions, runAgentTurn } from './agent-cli.mjs'
 import {
   formatExplanationRequest,
   loadExplainerContext,
@@ -71,6 +71,8 @@ export default function activate(orca) {
         turns: Array.isArray(saved?.turns) ? saved.turns : [],
         error: null,
         run: null,
+        // Bumped by reset, so a turn from before it cannot write into the new conversation.
+        generation: 0,
         postTimer: null
       }
       conversations.set(workspaceId, current)
@@ -185,19 +187,25 @@ export default function activate(orca) {
     }
     const answer = { id: randomUUID(), role: 'assistant', text: '', status: 'streaming', tools: [] }
     current.turns.push(userTurn, answer)
-    current.run = { stop: () => undefined, cancelled: false }
+    const handle = { stop: () => undefined, cancelled: false }
+    current.run = handle
+    // Why captured: New conversation or another agent may reset `current` while this turn runs.
+    const { provider, generation } = current
+    const stale = () => current.generation !== generation
     post(current, true)
 
     const fail = (message) => {
       answer.status = 'error'
       answer.text = answer.text || message
-      current.error = message
+      if (!stale()) {
+        current.error = message
+      }
     }
     try {
       const root = await requireWorkspaceRoot(current.workspaceId)
       const documents = await loadExplainerContext(
         (path) => readInstruction(root, path),
-        current.provider,
+        provider,
         selection?.relativePath ?? ''
       )
       const prepared = prepareExplainerPrompt(
@@ -206,11 +214,16 @@ export default function activate(orca) {
         text
       )
       const resume = current.started && current.agentSessionId !== null
-      const sessionId = resume
-        ? current.agentSessionId
-        : current.provider === 'claude'
-          ? randomUUID()
-          : null
+      const sessionId = resume ? current.agentSessionId : provider === 'claude' ? randomUUID() : null
+      // Read per question, so a changed setting applies from the next one.
+      const options = agentOptions(provider, {
+        model: await orca.settings.get(`${provider}Model`).catch(() => ''),
+        effort: await orca.settings.get(`${provider}Effort`).catch(() => 'default')
+      })
+      if (stale() || handle.cancelled) {
+        answer.status = 'cancelled'
+        return
+      }
       const binding = await mcp.bind(root, (summary) => {
         answer.tools.push(summary)
         post(current)
@@ -223,16 +236,19 @@ export default function activate(orca) {
       await new Promise((resolve) => {
         const run = runAgentTurn(
           {
-            provider: current.provider,
+            provider,
             prompt: prepared.prompt,
             sessionId,
             resume,
             cwd,
-            mcp: binding
+            mcp: binding,
+            ...options
           },
           {
             onSession: (id) => {
-              current.agentSessionId = id
+              if (!stale()) {
+                current.agentSessionId = id
+              }
             },
             onParagraph: () => {
               if (paragraphs++ > 0 && answer.text && !answer.text.endsWith('\n\n')) {
@@ -253,15 +269,17 @@ export default function activate(orca) {
                 answer.text = final
               }
               answer.status = 'done'
-              current.started = true
-              current.hashes = prepared.hashes
-              current.instructionFiles = prepared.files
+              if (!stale()) {
+                current.started = true
+                current.hashes = prepared.hashes
+                current.instructionFiles = prepared.files
+              }
             },
             onError: (message) => fail(message),
             onExit: (code, stderr) => {
               live.runs.delete(run)
               binding.release()
-              if (current.run?.cancelled) {
+              if (handle.cancelled) {
                 answer.status = 'cancelled'
               } else if (answer.status === 'streaming') {
                 fail(stderr || `The agent exited with code ${code}.`)
@@ -271,14 +289,23 @@ export default function activate(orca) {
           }
         )
         live.runs.add(run)
-        current.run.stop = () => run.stop()
+        handle.stop = () => run.stop()
+        // Stopped while it was still starting up.
+        if (handle.cancelled) {
+          run.stop()
+        }
       })
     } catch (error) {
       fail(error instanceof Error ? error.message : String(error))
     } finally {
-      current.run = null
-      post(current, true)
-      await save(current)
+      // A reset already cleared this run, and a newer turn may be running.
+      if (current.run === handle) {
+        current.run = null
+      }
+      if (!stale()) {
+        post(current, true)
+        await save(current)
+      }
     }
   }
 
@@ -357,8 +384,12 @@ export default function activate(orca) {
 
   orca.panels.handle('reset', async (input) => {
     const current = await conversation(input?.workspaceId)
-    current.run?.stop()
+    if (current.run) {
+      current.run.cancelled = true
+      current.run.stop()
+    }
     current.run = null
+    current.generation += 1
     current.provider = PROVIDERS.has(input?.provider) ? input.provider : await defaultProvider()
     current.agentSessionId = null
     current.started = false

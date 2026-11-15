@@ -66,7 +66,7 @@ export function createExplainPane(root: HTMLElement, actions: ExplainPaneActions
   const header = element('header', 'pane-header')
   const title = element('div', 'pane-title', 'Explain')
   const provider = element('select', 'pane-select')
-  provider.title = 'Agent for a new conversation'
+  provider.title = 'Agent: picking another starts a new conversation with it'
   for (const [value, label] of [
     ['claude', 'Claude Code'],
     ['codex', 'Codex']
@@ -141,9 +141,10 @@ export function createExplainPane(root: HTMLElement, actions: ExplainPaneActions
     }
   })
   stop.addEventListener('click', () => actions.cancel())
-  reset.addEventListener('click', () =>
-    actions.reset(provider.value === 'codex' ? 'codex' : 'claude')
-  )
+  const chosenProvider = (): Provider => (provider.value === 'codex' ? 'codex' : 'claude')
+  reset.addEventListener('click', () => actions.reset(chosenProvider()))
+  // The agents cannot continue each other's sessions, so switching starts a new conversation.
+  provider.addEventListener('change', () => actions.reset(chosenProvider()))
   close.addEventListener('click', () => actions.close())
 
   const pane = {

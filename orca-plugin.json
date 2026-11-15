@@ -3,7 +3,7 @@
   "execution": "trusted-worker",
   "id": "code-explainer",
   "name": "Code Explainer",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Highlight code and Claude Code or Codex explains it: a quick overview, a piece-by-piece breakdown, a call hierarchy, or an interactive flowchart you step through. Reads your project read-only.",
   "author": {
     "name": "orvillelim",
@@ -93,7 +93,7 @@
       {
         "key": "provider",
         "title": "Agent",
-        "description": "Who explains the code. A workspace's conversation keeps the agent it started with until New conversation.",
+        "description": "Who explains the code in a new conversation. To switch an existing one, pick the agent at the top of the pane; that starts a new conversation with it.",
         "type": "string",
         "enum": [
           "claude",
@@ -104,6 +104,102 @@
           "Codex"
         ],
         "default": "claude"
+      },
+      {
+        "key": "claudeModel",
+        "title": "Claude Code model",
+        "description": "Each one is always the latest version of that model. Applies from the next question.",
+        "type": "string",
+        "enum": [
+          "default",
+          "fable",
+          "opus",
+          "sonnet",
+          "haiku"
+        ],
+        "enumLabels": [
+          "Claude Code's default",
+          "Fable",
+          "Opus",
+          "Sonnet",
+          "Haiku"
+        ],
+        "default": "default"
+      },
+      {
+        "key": "claudeEffort",
+        "title": "Claude Code effort",
+        "description": "How hard Claude thinks before answering. Higher is slower and uses more of your plan. Applies from the next question.",
+        "type": "string",
+        "enum": [
+          "default",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "enumLabels": [
+          "Claude Code's default",
+          "Low",
+          "Medium",
+          "High",
+          "Extra high",
+          "Max"
+        ],
+        "default": "default"
+      },
+      {
+        "key": "codexModel",
+        "title": "Codex model",
+        "description": "Codex's models when this version of the plugin came out; a newer one needs a plugin update. Applies from the next question.",
+        "type": "string",
+        "enum": [
+          "default",
+          "gpt-6.1-sol",
+          "gpt-6-astra",
+          "gpt-6.1-terra",
+          "gpt-6-sol",
+          "gpt-6-luna",
+          "gpt-5.6-sol",
+          "gpt-5.6-terra",
+          "gpt-5.6-luna"
+        ],
+        "enumLabels": [
+          "Codex's default",
+          "GPT-6.1-Sol",
+          "GPT-6-Astra",
+          "GPT-6.1 Terra",
+          "GPT-6-Sol",
+          "GPT-6-Luna",
+          "GPT-5.6-Sol",
+          "GPT-5.6-Terra",
+          "GPT-5.6-Luna"
+        ],
+        "default": "default"
+      },
+      {
+        "key": "codexEffort",
+        "title": "Codex reasoning effort",
+        "description": "How hard Codex reasons before answering. Higher is slower and uses more of your plan. Applies from the next question.",
+        "type": "string",
+        "enum": [
+          "default",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "enumLabels": [
+          "Codex's default",
+          "Low",
+          "Medium",
+          "High",
+          "Extra high",
+          "Max"
+        ],
+        "default": "default"
       },
       {
         "key": "contextLines",

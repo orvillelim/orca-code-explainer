@@ -90,7 +90,7 @@ A flowchart of the selected code that you step through like a debugger, without 
 | **Best for** | Unfamiliar code, a quick orientation | Dense expressions, unfamiliar syntax, close reading | Tracing callers and dependencies, refactoring | Loops, branches, early returns, state machines |
 | **Shortcut** | `⌘⇧E` | `⌘⌥B` | `⌘⌥H` | `⌘⌥I` |
 
-After any answer you can ask a follow-up, click a suggested question, stop the agent, or start a new conversation. Each workspace keeps its own conversation.
+After any answer you can ask a follow-up, click a suggested question, stop the agent, or start a new conversation. Each workspace keeps its own conversation. To switch between Claude Code and Codex, pick one at the top of the pane: the two can't continue each other's conversations, so switching starts a new one.
 
 ## Install
 
@@ -114,7 +114,13 @@ npm run reinstall    # builds, shows its access, installs once you answer y
 
 Run `npm run reinstall` again after each change; it replaces the installed copy. Don't use `orca plugin install .` in this folder: Orca refuses the symlinks that `npm install` puts in `node_modules`, so the script installs a clean copy of the plugin's files instead.
 
-You need Orca 1.4.256 or newer, and the [Claude Code](https://docs.anthropic.com/en/docs/claude-code) or [Codex](https://github.com/openai/codex) CLI installed and signed in. Settings → Plugins → Code Explainer chooses the agent and how many lines around the selection to send.
+You need Orca 1.4.256 or newer, and the [Claude Code](https://docs.anthropic.com/en/docs/claude-code) or [Codex](https://github.com/openai/codex) CLI installed and signed in.
+
+In Settings → Plugins → Code Explainer you choose:
+
+- **Agent:** Claude Code or Codex, for new conversations.
+- **Model and effort**, for each agent, from a list. The default leaves the CLI's own choice. Claude Code's models (Fable, Opus, Sonnet, Haiku) are always their latest version. Codex's list is its models when this version of the plugin came out, so a newer one needs a plugin update. Changes apply from the next question.
+- **Surrounding lines:** how many lines above and below the selection are sent with it.
 
 ## Opening files in Code Explainer
 
@@ -145,7 +151,7 @@ Local workspaces only: projects on SSH hosts aren't supported yet.
 
 - **Your agent's CLI**, `claude` or `codex`, from your `PATH` (or `~/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin`). It starts for each question, signs in with your own login, and exits when the answer is done.
   - Its own file, shell and web tools are off. Its only tools are the plugin's three read-only ones: list, read and search project files.
-  - It runs in an empty folder (`~/Library/Caches/orca-code-explainer/agents/…` on macOS), not in your project. It doesn't load your CLI settings, hooks or other MCP servers; your sign-in still works.
+  - It runs in an empty folder (`~/Library/Caches/orca-code-explainer/agents/…` on macOS), not in your project. It doesn't load your CLI settings, hooks or other MCP servers; your sign-in still works. That's also why it uses the model and effort from the plugin's settings, not the ones set in your CLI.
 - **A local MCP server, `code_explainer`**, inside the plugin's own process. It's how the agent reads your project.
   - It listens on `127.0.0.1` only, on a random port, so other computers can't reach it.
   - It has three read-only tools: `list_project_files`, `read_project_file` and `search_project_code`.

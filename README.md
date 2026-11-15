@@ -48,6 +48,8 @@ percent(part, whole)                         :1   ← percentage of part in whol
 
 After any answer, the **Show the breakdown diagram** suggestion draws just the diagram for the code you last asked about.
 
+![Break it down demo](media/videos/2-breakdown.gif)
+
 ### ⑂ Call hierarchy: how does it connect? (`⌘⌥H`)
 
 A text call tree from the entry point that reaches your selection down to everything it calls. Each call is indented under its caller, with the file name where a call crosses files and a short `←` note on what each step does. The agent reads the called code first so the names are real, and marks anything it couldn't confirm with `(?)`.
@@ -62,7 +64,7 @@ A text call tree from the entry point that reaches your selection down to everyt
          └─ return count                 ← :12
 ```
 
-![Call hierarchy demo](media/videos/2-call-hierarchy.gif)
+![Call hierarchy demo](media/videos/3-call-hierarchy.gif)
 
 ### ▶ Interactive: how does it run, step by step? (`⌘⌥I`)
 
@@ -72,7 +74,7 @@ A flowchart of the selected code that you step through like a debugger, without 
 - **State buttons** jump between the situations worth comparing, such as `iteration 1: item 2`, `iteration 2: item -1` (where `continue` fires) or `iteration 3: item 7` (where `break` fires).
 - At each step, the active boxes light up, a note says **why** it happens, a table shows the **variable values** (changed values highlighted), and the matching **lines light up in your editor**.
 
-![Interactive demo](media/videos/3-interactive.gif)
+![Interactive demo](media/videos/4-interactive.gif)
 
 | Step through the loop | Jump to a state |
 | --- | --- |
@@ -108,6 +110,7 @@ You need Orca 1.4.256 or newer, and the [Claude Code](https://docs.anthropic.com
 
 - These open in Code Explainer by default: `.py`, `.go`, `.rs`, `.java`, `.c`, `.rb` and other code files, plus Godot files (`.gd`, `.gdshader`, `.tscn`, `.tres`). Godot files use the same grammars as Orca's Godot plugin.
 - For the types Orca opens itself (`.ts`, `.js`, `.json`, `.md`, `.yaml`, …), click **Code Explainer** beside **Source** at the top of the editor tab. Orca doesn't let plugins take those over.
+- Code Explainer is for reading and explaining code. It highlights every language and you can edit and save, but it has no smart completions, hover or go to definition. Switch to **Source** for those.
 - To go back to Orca's editor everywhere, turn the plugin off in Settings → Plugins.
 
 ## Zoom
@@ -198,14 +201,6 @@ npm run typecheck
 orca plugin dev load .   # loads this folder into Orca; rebuilds apply on their own
 ```
 
-
-## Publish a release
-
-1. Bump `version` in `orca-plugin.json` (and `package.json`), run `npm run build`, then commit.
-2. Run `orca plugin validate .`, then `orca plugin release-entry .` to print the pinned commit and content hash.
-3. Tag the release and push the tag: `git tag -a v1.0.0 -m v1.0.0 && git push origin v1.0.0`.
-4. For the first release only, add the `orca-plugin` topic: `gh repo edit orvillelim/orca-code-explainer --add-topic orca-plugin`.
-5. Check the listing at `https://www.onorca.dev/plugins/orvillelim/orca-code-explainer`.
 
 ## License
 

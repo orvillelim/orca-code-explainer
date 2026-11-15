@@ -1,4 +1,4 @@
-// Bundles the editor frame and Monaco's workers into dist/. Run from anywhere: node build.mjs
+// Bundles the editor frame and Monaco's editor worker into dist/. Run from anywhere: node build.mjs
 import { build } from 'esbuild'
 import { copyFileSync, mkdirSync, rmSync } from 'node:fs'
 import { basename, join } from 'node:path'
@@ -33,6 +33,23 @@ const wasmUrlPlugin = {
   }
 }
 
+// The editor is for reading and explaining; Source has completions and hover. So Monaco keeps its
+// grammars (they color the code, and need no worker) but not the TypeScript, CSS and HTML language
+// services, which are the bulk of its workers. JSON keeps its module: its highlighter lives there.
+const noLanguageServicesPlugin = {
+  name: 'no-language-services',
+  setup(build) {
+    build.onResolve({ filter: /\/language\/(css|html|typescript)\/monaco\.contribution\.js$/ }, (args) => ({
+      path: args.path,
+      namespace: 'no-language-service'
+    }))
+    build.onLoad({ filter: /.*/, namespace: 'no-language-service' }, () => ({
+      contents: '',
+      loader: 'js'
+    }))
+  }
+}
+
 const common = {
   bundle: true,
   minify: !watch,
@@ -55,16 +72,12 @@ await Promise.all([
     // Why a data URL: the community catalog refuses TTF files; Orca's frame CSP allows data: fonts.
     loader: { '.ttf': 'dataurl' },
     assetNames: '[name]',
-    plugins: [wasmUrlPlugin]
+    plugins: [wasmUrlPlugin, noLanguageServicesPlugin]
   }),
   build({
     ...common,
     entryPoints: {
-      'editor.worker': `${monacoEsm}/editor/editor.worker.js`,
-      'json.worker': `${monacoEsm}/language/json/json.worker.js`,
-      'css.worker': `${monacoEsm}/language/css/css.worker.js`,
-      'html.worker': `${monacoEsm}/language/html/html.worker.js`,
-      'ts.worker': `${monacoEsm}/language/typescript/ts.worker.js`
+      'editor.worker': `${monacoEsm}/editor/editor.worker.js`
     },
     outdir: dist,
     format: 'iife'

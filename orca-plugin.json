@@ -3,7 +3,7 @@
   "execution": "trusted-worker",
   "id": "code-explainer",
   "name": "Code Explainer",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Highlight code and Claude Code or Codex explains it: a quick overview, a piece-by-piece breakdown, a call hierarchy, or an interactive flowchart you step through. Reads your project read-only.",
   "author": {
     "name": "orvillelim",
@@ -130,13 +130,13 @@
   "icon": "media/icon.png",
   "cover": {
     "path": "media/cover.png",
-    "alt": "Code Explainer: the selection menu with Explain, Call hierarchy and Interactive, next to an interactive flowchart of a loop."
+    "alt": "Code Explainer: the selection menu with Explain, Break it down, Call hierarchy and Interactive, next to an interactive flowchart of a loop."
   },
   "screenshots": [
     {
       "path": "media/screenshots/1-menu.png",
-      "alt": "A loop selected in the editor with the stacked menu open: Explain, Call hierarchy and Interactive, each with its shortcut.",
-      "caption": "Highlight code, pick one of three ways to explain it"
+      "alt": "A loop selected in the editor with the stacked menu open: Explain, Break it down, Call hierarchy and Interactive, each with its shortcut.",
+      "caption": "Highlight code, pick one of four ways to explain it"
     },
     {
       "path": "media/screenshots/2-explain.png",

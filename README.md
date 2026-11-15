@@ -2,7 +2,7 @@
 
 <h1 align="center">Code Explainer</h1>
 
-<p align="center">Highlight code in Orca and Claude Code or Codex explains it three ways:<br>
+<p align="center">Agentic code explainer for Orca<br>
 a quick <b>overview</b>, a <b>call hierarchy</b>, or an <b>interactive flowchart</b> you step through.</p>
 
 ![Code Explainer](media/cover.png)
@@ -15,7 +15,7 @@ Highlight code. Three stacked buttons appear under the selection, and the same t
 
 ![The selection menu](media/screenshots/1-menu.png)
 
-### ◉ Explain: what is this for? (`⌘⇧E`)
+### Explain: what is this for? (`⌘⇧E`)
 
 A short, high-level overview, with no line-by-line walkthrough. It opens with a one-line **In short**, then:
 
@@ -25,8 +25,6 @@ A short, high-level overview, with no line-by-line walkthrough. It opens with a 
 - **Ask next:** three follow-up questions you can click to ask.
 
 ![Explain demo](media/videos/1-explain.gif)
-
-[Full-quality video (MP4)](media/videos/1-explain.mp4)
 
 ### ⑂ Call hierarchy: how does it connect? (`⌘⌥H`)
 
@@ -43,8 +41,6 @@ A text call tree from the entry point that reaches your selection down to everyt
 ```
 
 ![Call hierarchy demo](media/videos/2-call-hierarchy.gif)
-
-[Full-quality video (MP4)](media/videos/2-call-hierarchy.mp4)
 
 ### ▶ Interactive: how does it run, step by step? (`⌘⌥I`)
 
@@ -147,7 +143,6 @@ npm run typecheck
 orca plugin dev load .   # loads this folder into Orca; rebuilds apply on their own
 ```
 
-`dist/` is committed on purpose: Orca installs the repository as it is and never builds it. Rebuild before you commit.
 
 ## Publish a release
 

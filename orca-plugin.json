@@ -3,8 +3,8 @@
   "execution": "trusted-worker",
   "id": "code-explainer",
   "name": "Code Explainer",
-  "version": "1.0.0",
-  "description": "Highlight code and Claude Code or Codex explains it: a quick overview, a call hierarchy, or an interactive flowchart you step through. Reads your project read-only.",
+  "version": "1.0.1",
+  "description": "Highlight code and Claude Code or Codex explains it: a quick overview, a piece-by-piece breakdown, a call hierarchy, or an interactive flowchart you step through. Reads your project read-only.",
   "author": {
     "name": "orvillelim",
     "url": "https://github.com/orvillelim"
@@ -51,7 +51,17 @@
           ".scala",
           ".dart",
           ".vue",
-          ".svelte",
+          ".svelte"
+        ]
+      },
+      {
+        "id": "code-data",
+        "title": "Code Explainer",
+        "priority": "default",
+        "frame": "isolated",
+        "contentKind": "text",
+        "entry": "dist/editor.html",
+        "extensions": [
           ".json",
           ".md",
           ".yaml",

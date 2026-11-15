@@ -3,15 +3,15 @@
 <h1 align="center">Code Explainer</h1>
 
 <p align="center">Agentic code explainer for Orca<br>
-a quick <b>overview</b>, a <b>call hierarchy</b>, or an <b>interactive flowchart</b> you step through.</p>
+a quick <b>overview</b>, a piece-by-piece <b>breakdown</b>, a <b>call hierarchy</b>, or an <b>interactive flowchart</b> you step through.</p>
 
 ![Code Explainer](media/cover.png)
 
-Code Explainer is a plugin for [Orca](https://github.com/stablyai/orca). It adds a code editor with a selection menu. Highlight code and pick one of three actions. The answer appears in a pane beside your code, written by the agent you already use (Claude Code or Codex). The agent can read the rest of your project to give context, but it can't change anything.
+Code Explainer is a plugin for [Orca](https://github.com/stablyai/orca). It adds a code editor with a selection menu. Highlight code and pick one of four actions. The answer appears in a pane beside your code, written by the agent you already use (Claude Code or Codex). The agent can read the rest of your project to give context, but it can't change anything.
 
-## The three actions
+## The four actions
 
-Highlight code. Three stacked buttons appear under the selection, and the same three are in the right-click menu:
+Highlight code. Four stacked buttons appear under the selection, and the same four are in the right-click menu:
 
 ![The selection menu](media/screenshots/1-menu.png)
 
@@ -25,6 +25,28 @@ A short, high-level overview, with no line-by-line walkthrough. It opens with a 
 - **Ask next:** three follow-up questions you can click to ask.
 
 ![Explain demo](media/videos/1-explain.gif)
+
+### ≡ Break it down: how does each piece work? (`⌘⌥B`)
+
+One level deeper than Explain. It takes the selection apart statement by statement, then splits each statement into its expressions, operators and calls, in the order they run. It's all text: no flowchart and nothing interactive. It opens with **In short**, then:
+
+- **Breakdown diagram:** a text tree of the code. Each statement sits under its block, and each part under its statement, with its line and a short `←` note. Numbered chunks (`[1]`, `[2]`, …) point to the steps below.
+- **Step by step:** one item per numbered chunk. It covers what each operator and call does (precedence, short-circuiting, type coercion, mutation) and why it's there.
+- **Putting it together:** how the chunks combine, what comes out, and any side effects.
+- **Watch out for:** only when an operator or statement hides a real trap.
+
+```text
+percent(part, whole)                         :1   ← percentage of part in whole
+├─ [1] if (whole === 0) return 0             :2   ← guard before dividing
+│     ├─ whole === 0                              ← strict equality: no type coercion
+│     └─ return 0                                 ← leaves early; nothing below runs
+└─ [2] return Math.min(Math.round(…), 100)   :3   ← the result
+      ├─ part / whole * 100                       ← / then *, left to right
+      ├─ Math.round(…)                            ← to the nearest whole number
+      └─ Math.min(…, 100)                         ← caps it at 100
+```
+
+After any answer, the **Show the breakdown diagram** suggestion draws just the diagram for the code you last asked about.
 
 ### ⑂ Call hierarchy: how does it connect? (`⌘⌥H`)
 
@@ -52,21 +74,19 @@ A flowchart of the selected code that you step through like a debugger, without 
 
 ![Interactive demo](media/videos/3-interactive.gif)
 
-[Full-quality video (MP4)](media/videos/3-interactive.mp4)
-
 | Step through the loop | Jump to a state |
 | --- | --- |
 | ![Steps](media/screenshots/4-interactive-steps.png) | ![States](media/screenshots/5-interactive-state.png) |
 
 ### Which one should I use?
 
-| | Explain | Call hierarchy | Interactive |
-| --- | --- | --- | --- |
-| **Answers** | What is this for, and where does it fit? | What does this call, and what calls it? | How does it actually run, case by case? |
-| **Shape** | Short sections: purpose, context, inputs/outputs | Indented text tree with file and line notes | Flowchart with steps, states, variables and editor highlights |
-| **Depth** | High level, no line-by-line | Structure across functions and files | Execution, one step at a time with example values |
-| **Best for** | Unfamiliar code, a quick orientation | Tracing callers and dependencies, refactoring | Loops, branches, early returns, state machines |
-| **Shortcut** | `⌘⇧E` | `⌘⌥H` | `⌘⌥I` |
+| | Explain | Break it down | Call hierarchy | Interactive |
+| --- | --- | --- | --- | --- |
+| **Answers** | What is this for, and where does it fit? | What does each statement and operator do? | What does this call, and what calls it? | How does it actually run, case by case? |
+| **Shape** | Short sections: purpose, context, inputs/outputs | Breakdown tree, then numbered steps | Indented text tree with file and line notes | Flowchart with steps, states, variables and editor highlights |
+| **Depth** | High level, no line-by-line | Every statement, expression and operator, in order | Structure across functions and files | Execution, one step at a time with example values |
+| **Best for** | Unfamiliar code, a quick orientation | Dense expressions, unfamiliar syntax, close reading | Tracing callers and dependencies, refactoring | Loops, branches, early returns, state machines |
+| **Shortcut** | `⌘⇧E` | `⌘⌥B` | `⌘⌥H` | `⌘⌥I` |
 
 After any answer you can ask a follow-up, click a suggested question, stop the agent, or start a new conversation. Each workspace keeps its own conversation.
 
@@ -125,7 +145,7 @@ Orca editor tab ──text──► editor frame (Monaco, menu, pane)  ──req
   - `explain-pane.ts` and `answer-markdown.ts` render the conversation.
   - `walkthrough.ts` and `mermaid-runtime.ts` draw the interactive flowchart.
   - `editor-zoom.ts` handles zoom.
-- **`src/explain-modes.mjs`:** the instructions for each of the three actions, in one place.
+- **`src/explain-modes.mjs`:** the instructions for each of the four actions, in one place.
 - **`worker/`:**
   - `main.mjs` handles conversations and finds the file by its content, since Orca doesn't give plugins the path.
   - `agent-cli.mjs` starts the CLIs with their tools turned off.

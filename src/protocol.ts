@@ -1,5 +1,5 @@
 /** Messages between the editor frame and the worker. The worker (plain .mjs) follows these shapes. */
-import { CALL_TREE_PROMPT, type ExplainMode } from './explain-modes.mjs'
+import { BREAKDOWN_DIAGRAM_PROMPT, CALL_TREE_PROMPT, type ExplainMode } from './explain-modes.mjs'
 
 export type { ExplainMode }
 
@@ -86,6 +86,7 @@ export type Suggestion = { label: string; prompt?: string }
 
 export const SUGGESTIONS: readonly Suggestion[] = [
   { label: 'Show the call tree', prompt: CALL_TREE_PROMPT },
+  { label: 'Show the breakdown diagram', prompt: BREAKDOWN_DIAGRAM_PROMPT },
   { label: 'Why was it designed this way?' },
   { label: 'What does it depend on, and what depends on it?' },
   { label: 'Which edge cases can break it?' }

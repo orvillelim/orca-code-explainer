@@ -52,7 +52,8 @@ await Promise.all([
     },
     outdir: dist,
     format: 'esm',
-    loader: { '.ttf': 'file' },
+    // Why a data URL: the community catalog refuses TTF files; Orca's frame CSP allows data: fonts.
+    loader: { '.ttf': 'dataurl' },
     assetNames: '[name]',
     plugins: [wasmUrlPlugin]
   }),

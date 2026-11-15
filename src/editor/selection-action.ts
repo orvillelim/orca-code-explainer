@@ -1,4 +1,4 @@
-import type { editor } from 'monaco-editor'
+import type { editor, IPosition, Selection } from 'monaco-editor'
 import { monaco } from './monaco-setup'
 import type { ExplainSelection } from '../protocol'
 import { EXPLAIN_MODES, type ExplainMode } from '../explain-modes.mjs'
@@ -55,14 +55,20 @@ const MOD = isMac ? '⌘' : 'Ctrl+'
 const ALT = isMac ? '⌥' : 'Alt+'
 const SHIFT = isMac ? '⇧' : 'Shift+'
 
-// Why ⌘⌥ for the two new actions: Orca binds most ⌘⇧ letters and forwards them before they reach
-// this frame; Mod+Alt+H and Mod+Alt+I are free.
+// Why ⌘⌥ for the other actions: Orca binds most ⌘⇧ letters and forwards them before they reach
+// this frame; Mod+Alt+H and Mod+Alt+I are free, and Mod+Alt+B is chosen to match.
 const MENU: MenuItem[] = [
   {
     mode: 'overview',
     glyph: '◉',
     keys: `${MOD}${SHIFT}E`,
     keybinding: monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyE
+  },
+  {
+    mode: 'breakdown',
+    glyph: '≡',
+    keys: `${MOD}${ALT}B`,
+    keybinding: monaco.KeyMod.CtrlCmd | monaco.KeyMod.Alt | monaco.KeyCode.KeyB
   },
   {
     mode: 'callTree',
@@ -79,9 +85,9 @@ const MENU: MenuItem[] = [
 ]
 
 /**
- * The selection menu: Explain, Call hierarchy and Interactive stacked beside a selection, the same
- * three in the context menu, and their shortcuts. Its buttons keep the selection: they never take
- * focus on mousedown.
+ * The selection menu: Explain, Break it down, Call hierarchy and Interactive stacked beside a
+ * selection, the same four in the context menu, and their shortcuts. Its buttons keep the
+ * selection: they never take focus on mousedown.
  */
 export function installExplainMenu(
   instance: editor.IStandaloneCodeEditor,
@@ -131,22 +137,111 @@ export function installExplainMenu(
   }
   instance.addContentWidget(widget)
 
-  // Chosen: the menu steps aside for the answer, and returns with the next selection.
+  // Closed (an action chosen, Escape, a press elsewhere): it returns with the next selection.
   const hide = (): void => {
     position = null
     node.hidden = true
     instance.layoutContentWidget(widget)
   }
+  // Where the menu opens: where the pointer let go of a mouse selection, else at the cursor's end
+  // of the selection. Why not the selection's end: a selection dragged upwards, or taller than the
+  // view, ends far from the pointer.
+  let pointerAnchor: IPosition | null = null
+  let dragging = false
+  const anchorOf = (selection: Selection): IPosition => {
+    if (pointerAnchor) {
+      return pointerAnchor
+    }
+    const { positionLineNumber: lineNumber, positionColumn: column } = selection
+    // A whole-line selection (triple click, line numbers) ends at column 1 of the line below it.
+    const model = instance.getModel()
+    if (model && column === 1 && lineNumber > selection.startLineNumber) {
+      return { lineNumber: lineNumber - 1, column: model.getLineMaxColumn(lineNumber - 1) }
+    }
+    return { lineNumber, column }
+  }
   const update = (): void => {
     const selection = instance.getSelection()
     position =
-      enabled && selection && !selection.isEmpty()
-        ? { lineNumber: selection.endLineNumber, column: selection.endColumn }
-        : null
+      enabled && !dragging && selection && !selection.isEmpty() ? anchorOf(selection) : null
     node.hidden = position === null
     instance.layoutContentWidget(widget)
   }
-  instance.onDidChangeCursorSelection(update)
+  // While the menu is open, a press on the code only closes it and keeps the highlight; the next
+  // press acts as usual. Presses elsewhere (pane, scrollbar, right-click) close it and go through.
+  const selectingTargets = new Set<editor.MouseTargetType>([
+    monaco.editor.MouseTargetType.CONTENT_TEXT,
+    monaco.editor.MouseTargetType.CONTENT_EMPTY,
+    monaco.editor.MouseTargetType.GUTTER_LINE_NUMBERS,
+    monaco.editor.MouseTargetType.GUTTER_LINE_DECORATIONS,
+    monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN
+  ])
+  let swallowing = false
+  // A press in the editor may make a new selection: the menu waits until release, then opens
+  // under the pointer.
+  let selectedWhilePressed = false
+  window.addEventListener(
+    'pointerdown',
+    (event) => {
+      const target = event.target instanceof Node ? event.target : null
+      if (target && node.contains(target)) {
+        return
+      }
+      const open = position !== null
+      hide()
+      if (event.button !== 0 || !target || !instance.getDomNode()?.contains(target)) {
+        return
+      }
+      const hit = instance.getTargetAtClientPoint(event.clientX, event.clientY)
+      if (open && hit && selectingTargets.has(hit.type)) {
+        // Why both: Monaco selects on mousedown, which a cancelled pointerdown no longer sends.
+        event.preventDefault()
+        event.stopPropagation()
+        swallowing = true
+        return
+      }
+      dragging = true
+      selectedWhilePressed = false
+    },
+    true
+  )
+  window.addEventListener(
+    'mousedown',
+    (event) => {
+      if (swallowing) {
+        event.preventDefault()
+        event.stopPropagation()
+      }
+    },
+    true
+  )
+  const release = (event: PointerEvent): void => {
+    swallowing = false
+    if (!dragging) {
+      return
+    }
+    dragging = false
+    // The press scrolled or clicked aside without selecting, so the menu stays closed.
+    if (!selectedWhilePressed) {
+      return
+    }
+    const target = instance.getTargetAtClientPoint(event.clientX, event.clientY)
+    pointerAnchor = target?.position ?? null
+    update()
+  }
+  // Clicked outside this frame, in the rest of Orca.
+  window.addEventListener('blur', hide)
+  // Why the window: Monaco captures the pointer for a drag, which can end outside the editor.
+  window.addEventListener('pointerup', release, true)
+  window.addEventListener('pointercancel', release, true)
+  instance.onDidChangeCursorSelection((event) => {
+    selectedWhilePressed ||= dragging
+    if (event.source !== 'mouse') {
+      pointerAnchor = null
+      dragging = false
+    }
+    update()
+  })
   instance.onKeyDown((event) => {
     if (event.keyCode === monaco.KeyCode.Escape && position !== null) {
       hide()

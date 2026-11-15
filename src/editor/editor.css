@@ -561,7 +561,8 @@ body {
   color: var(--muted);
 }
 
-/* The selection menu: Explain, Call hierarchy, Interactive, stacked under the selection. */
+/* The selection menu: Explain, Break it down, Call hierarchy, Interactive, stacked under the
+   selection. */
 .explain-menu {
   display: flex;
   flex-direction: column;

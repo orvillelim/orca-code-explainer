@@ -1,8 +1,8 @@
 {
   "name": "orca-code-explainer",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
-  "description": "Orca plugin: highlight code and Claude Code or Codex explains it: an overview, a call hierarchy, or an interactive walkthrough.",
+  "description": "Orca plugin: highlight code and Claude Code or Codex explains it: an overview, a breakdown, a call hierarchy, or an interactive walkthrough.",
   "license": "MIT",
   "type": "module",
   "scripts": {

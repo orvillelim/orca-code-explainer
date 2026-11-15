@@ -1,4 +1,4 @@
-// The three ways to explain a selection, shared by the editor frame (menu, chips) and the worker
+// The four ways to explain a selection, shared by the editor frame (menu, chips) and the worker
 // (prompts). Plain JS so the worker can import it without a build.
 
 export const CALL_TREE_PROMPT = `Draw a call tree of the selected code, in this format:
@@ -25,6 +25,53 @@ What goes in and what comes out (including side effects), in one or two bullets.
 
 ### Ask next
 Three short questions about design decisions, dependencies and edge cases.`
+
+// One example and one set of rules for the breakdown diagram, shared by "Break it down" and the
+// "Show the breakdown diagram" chip.
+const BREAKDOWN_DIAGRAM = `\`\`\`text
+percent(part, whole)                         :1   ← percentage of part in whole
+├─ [1] if (whole === 0) return 0             :2   ← guard before dividing
+│     ├─ whole === 0                              ← strict equality: no type coercion
+│     └─ return 0                                 ← leaves early; nothing below runs
+└─ [2] return Math.min(Math.round(…), 100)   :3   ← the result
+      ├─ part / whole * 100                       ← / then *, left to right
+      ├─ Math.round(…)                            ← to the nearest whole number
+      └─ Math.min(…, 100)                         ← caps it at 100
+\`\`\``
+
+const BREAKDOWN_DIAGRAM_RULES = `the first row names the selection (its function, or its first statement) with its line; indent each statement under the block that holds it, and each expression, operator or call under its statement, with ├─, └─ and │, in the order they run; give each statement its line (:2) and every row a short ← note; tag the chunks worth explaining [1], [2] and so on. Copy the code as written, shortening long arguments to (…). Names and literals need no row of their own. Stay under about 40 rows: for a long selection, put trivial statements on one row together and break down only the ones that carry the logic.`
+
+/** The "Show the breakdown diagram" chip: the diagram alone, for the selection already asked about. */
+export const BREAKDOWN_DIAGRAM_PROMPT = `Draw a breakdown diagram of the selected code, in this format:
+
+${BREAKDOWN_DIAGRAM}
+
+Rules: ${BREAKDOWN_DIAGRAM_RULES} Put the diagram in a \`\`\`text block, then say in two or three sentences how the pieces fit together.`
+
+const BREAKDOWN_PROMPT = `Break the selected code down piece by piece, one level deeper than an overview: every statement, and inside each statement the expressions, operators and calls that make it up, in the order they run. Explain in text only: no flowchart, no Mermaid and no interactive walkthrough. Use this format:
+
+**In short:** one sentence on what the whole selection does.
+
+### Breakdown diagram
+A text tree of the code in a \`\`\`text block, like this:
+
+${BREAKDOWN_DIAGRAM}
+
+### Step by step
+One numbered item per [n] chunk of the diagram, in the same order. Start each with the chunk and its line, for example "1. **\`if (whole === 0) return 0\`** (line 2)", then two or three bullets:
+- what each part does, operator by operator: precedence, short-circuiting, type coercion, mutation, and the value it produces
+- why it is there, with a small concrete example value where it helps
+
+### Putting it together
+Two or three sentences: how the chunks combine, what comes out, and any side effects.
+
+### Watch out for
+Only when an operator or statement hides a real trap (precedence, \`==\` against \`===\`, off-by-one, mutation, async ordering); otherwise leave this section out.
+
+Rules:
+- Diagram: ${BREAKDOWN_DIAGRAM_RULES}
+- Explain operators by the rules of the selection's own language.
+- Read related code with the project tools when a call's behaviour matters; mark anything you could not confirm with (?).`
 
 /** Fence tag of the interactive walkthrough the frame draws. */
 export const WALKTHROUGH_FENCE = 'explainer-walkthrough'
@@ -56,9 +103,10 @@ Rules:
 - Pick small, concrete example values and keep them consistent across steps. Read related code with the project tools when needed; do not invent behaviour.
 - The JSON must parse: escape quotes and newlines inside strings.`
 
-/** @type {Record<'overview' | 'callTree' | 'interactive', { label: string; prompt: string }>} */
+/** @type {Record<'overview' | 'breakdown' | 'callTree' | 'interactive', { label: string; prompt: string }>} */
 export const EXPLAIN_MODES = {
   overview: { label: 'Explain', prompt: OVERVIEW_PROMPT },
+  breakdown: { label: 'Break it down', prompt: BREAKDOWN_PROMPT },
   callTree: { label: 'Call hierarchy', prompt: CALL_TREE_PROMPT },
   interactive: { label: 'Interactive', prompt: INTERACTIVE_PROMPT }
 }

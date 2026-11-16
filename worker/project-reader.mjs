@@ -1,7 +1,7 @@
 // Read-only access to one project folder, ported from the built-in explainer's project-reader.ts.
 // Every path is resolved with realpath and refused when it leaves the project.
 import { readdir, readFile, realpath, stat } from 'node:fs/promises'
-import { isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fingerprintText, normalizeText } from '../src/text-fingerprint.mjs'
 
 const SKIP_DIRECTORIES = new Set([
@@ -88,8 +88,11 @@ export async function readProjectFile(root, path, startLine = 1, endLine = start
   return { text: body + more, summary: `read ${path}:${startLine}-${last}` }
 }
 
-/** Files under `root`, relative and `/`-separated, skipping dependency folders and symlinks. */
-async function walkProject(root, limit, visit) {
+/**
+ * Files under `root`, relative and `/`-separated, skipping dependency folders and symlinks.
+ * An aborted `signal` stops the walk.
+ */
+async function walkProject(root, limit, visit, signal) {
   let count = 0
   const walk = async (directory) => {
     let entries
@@ -99,7 +102,7 @@ async function walkProject(root, limit, visit) {
       return
     }
     for (const entry of entries) {
-      if (count >= limit) {
+      if (count >= limit || signal?.aborted) {
         return
       }
       const fullPath = join(directory, entry.name)
@@ -155,30 +158,50 @@ export async function searchProjectCode(root, query) {
   }
 }
 
-/**
- * The files under `root` whose text is the editor's (BOM and CRLF ignored), at most 5. Orca gives
- * a plugin editor no path, so this is how the plugin learns which file it shows.
- */
-export async function locateFile(root, fingerprint) {
-  const found = []
-  // A CRLF file is longer on disk by up to one byte a line, plus a 3-byte BOM.
-  const maxBytes = fingerprint.length * 4 + fingerprint.lines + 3
-  await walkProject(root, LOCATE_FILE_LIMIT, async (fullPath, relativePath) => {
-    if (found.length >= 5) {
-      return
+/** Whether the file's text is the editor's (BOM and CRLF ignored). */
+async function hasText(fullPath, fingerprint) {
+  try {
+    // A CRLF file is longer on disk by up to one byte a line, plus a 3-byte BOM.
+    const size = (await stat(fullPath)).size
+    if (size < fingerprint.length || size > fingerprint.length * 4 + fingerprint.lines + 3) {
+      return false
     }
-    try {
-      const size = (await stat(fullPath)).size
-      if (size < fingerprint.length || size > maxBytes) {
+    const text = normalizeText(await readFile(fullPath, 'utf8'))
+    return text.length === fingerprint.length && fingerprintText(text).hash === fingerprint.hash
+  } catch {
+    // Unreadable files cannot be the one open in the editor.
+    return false
+  }
+}
+
+/**
+ * The files under `root` whose text is the editor's, at most 5. Orca gives a plugin editor no
+ * path, so this is how the plugin learns which file it shows. An aborted `signal` stops it;
+ * `extensions` (lowercase, with the dot), when given, are the only file types checked.
+ */
+export async function locateFile(root, fingerprint, signal, extensions) {
+  const found = []
+  await walkProject(
+    root,
+    LOCATE_FILE_LIMIT,
+    async (fullPath, relativePath) => {
+      if (extensions && !extensions.has(extname(relativePath).toLowerCase())) {
         return
       }
-      const text = normalizeText(await readFile(fullPath, 'utf8'))
-      if (text.length === fingerprint.length && fingerprintText(text).hash === fingerprint.hash) {
+      if (found.length < 5 && (await hasText(fullPath, fingerprint))) {
         found.push(relativePath)
       }
-    } catch {
-      // Unreadable files cannot be the one open in the editor.
-    }
-  })
+    },
+    signal
+  )
   return found
+}
+
+/** Whether `relativePath`, inside `root`, still has the editor's text. */
+export async function fileHasText(root, relativePath, fingerprint) {
+  try {
+    return await hasText(await projectFile(root, relativePath), fingerprint)
+  } catch {
+    return false
+  }
 }

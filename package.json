@@ -10,6 +10,7 @@
     "watch": "node build.mjs --watch",
     "types": "orca plugin types .",
     "typecheck": "tsc -p .",
+    "test": "node --test tests/*.test.mjs",
     "validate": "orca plugin validate .",
     "reinstall": "node reinstall.mjs"
   },

@@ -89,6 +89,11 @@
         ]
       }
     ],
+    "events": [
+      {
+        "on": "workspace.removed"
+      }
+    ],
     "settings": [
       {
         "key": "provider",

@@ -6,6 +6,7 @@ import { fingerprintText } from '../text-fingerprint.mjs'
 import { followOrcaTypography } from './editor-typography'
 import { BASE_FONT_SIZE, installZoom, setHintScale } from './editor-zoom'
 import { registerGodotLanguages } from './godot-languages'
+import { rememberLanguage, rememberedLanguage } from './language-memory'
 import type { ConversationSnapshot, ExplainMode, LocatedFile, Provider } from '../protocol'
 
 function byId(id: string): HTMLElement {
@@ -22,6 +23,7 @@ const orca = globalThis.orca
 const editorRoot = byId('editor')
 const paneRoot = byId('pane')
 const splitter = byId('splitter')
+const conversationButton = byId('conversation')
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
@@ -63,7 +65,15 @@ async function start(): Promise<void> {
     throw new Error('Code Explainer runs as an editor.')
   }
   const session = await orca.document.session<string>()
-  const model = monaco.editor.createModel(session.value, 'plaintext')
+  // The text as opened is the saved file, so it matches before any edit. Why asked now: the
+  // worker may have to start and search, which runs while Monaco builds the editor.
+  const openedHash = fingerprintText(session.value).hash
+  const locating = locate(session.value)
+  locating.catch(() => undefined)
+  const model = monaco.editor.createModel(
+    session.value,
+    (await rememberedLanguage(openedHash)) ?? 'plaintext'
+  )
   const instance = monaco.editor.create(editorRoot, {
     model,
     theme: themeName(),
@@ -130,13 +140,39 @@ async function start(): Promise<void> {
     ])
     instance.revealLinesInCenterIfOutsideViewport(from, to)
   }
+  // The workspace's conversation is drawn only once the pane is open: an old walkthrough's
+  // diagram costs a noticeable pause, which must not land on every file opened.
+  let latest: ConversationSnapshot | null = null
+  let paneOpen = false
+  const updateConversationButton = (): void => {
+    const questions = latest?.turns.filter((turn) => turn.role === 'user').length ?? 0
+    conversationButton.hidden = paneOpen || questions === 0
+    conversationButton.textContent = latest?.busy
+      ? 'Conversation · answering…'
+      : `Conversation (${questions})`
+  }
+  const showConversation = (snapshot: ConversationSnapshot): void => {
+    latest = snapshot
+    if (paneOpen) {
+      pane.render(snapshot)
+    }
+    updateConversationButton()
+  }
   const showPane = (shown: boolean): void => {
+    const opening = shown && !paneOpen
+    paneOpen = shown
     paneRoot.hidden = !shown
     splitter.hidden = !shown
+    if (opening && latest) {
+      pane.render(latest)
+      pane.scrollToEnd()
+    }
     if (!shown) {
       stepLines.clear()
     }
+    updateConversationButton()
   }
+  conversationButton.addEventListener('click', () => showPane(true))
   const pane = createExplainPane(paneRoot, {
     ask: (text, shown) => {
       if (file?.workspaceId) {
@@ -155,7 +191,7 @@ async function start(): Promise<void> {
       if (file?.workspaceId) {
         void orca.plugin
           .request('reset', { workspaceId: file.workspaceId, provider })
-          .then((snapshot) => pane.render(snapshot))
+          .then(showConversation)
           .catch((error: unknown) => pane.showError(errorMessage(error)))
       }
     },
@@ -167,29 +203,29 @@ async function start(): Promise<void> {
   zoom.pane.onChange(pane.enableZoom(zoom.pane.zoom))
   orca.plugin.on('conversation', (snapshot: ConversationSnapshot) => {
     if (snapshot.workspaceId === file?.workspaceId) {
-      pane.render(snapshot)
+      showConversation(snapshot)
     }
   })
 
-  const applyLocated = (located: LocatedFile): void => {
+  /** `opened`: the file was found by the text it opened with, so its language is remembered. */
+  const applyLocated = (located: LocatedFile, opened = false): void => {
     file = located
     if (located.relativePath) {
-      monaco.editor.setModelLanguage(model, languageFor(located.relativePath))
+      const languageId = languageFor(located.relativePath)
+      monaco.editor.setModelLanguage(model, languageId)
+      if (opened) {
+        void rememberLanguage(openedHash, languageId).catch(() => undefined)
+      }
     }
     pane.setFile(located.relativePath, located.alsoMatches)
   }
-  // The text as opened is the saved file, so it matches before any edit.
-  void locate(session.value)
+  void locating
     .then((located) => {
-      applyLocated(located)
+      applyLocated(located, true)
       if (located.workspaceId) {
         return orca.plugin
           .request('state', { workspaceId: located.workspaceId })
-          .then((restored) => {
-            pane.render(restored)
-            showPane(restored.turns.length > 0)
-            pane.scrollToEnd()
-          })
+          .then(showConversation)
       }
       return undefined
     })

@@ -127,6 +127,7 @@ In Settings → Plugins → Code Explainer you choose:
 - These open in Code Explainer by default: `.py`, `.go`, `.rs`, `.java`, `.c`, `.rb` and other code files, plus Godot files (`.gd`, `.gdshader`, `.tscn`, `.tres`). Godot files use the same grammars as Orca's Godot plugin.
 - For the types Orca opens itself (`.ts`, `.js`, `.json`, `.md`, `.yaml`, …), click **Code Explainer** beside **Source** at the top of the editor tab. Orca doesn't let plugins take those over.
 - Code Explainer is for reading and explaining code. It highlights every language and you can edit and save, but it has no smart completions, hover or go to definition. Switch to **Source** for those.
+- The editor opens first. Saved answers load when you click **Conversation (n)** in the bottom right, or run an explanation action. Previously opened files remember their syntax language so highlighting can start before the file lookup finishes.
 - To go back to Orca's editor everywhere, turn the plugin off in Settings → Plugins.
 
 ## Zoom
@@ -160,7 +161,7 @@ Local workspaces only: projects on SSH hosts aren't supported yet.
 
 ### What it reads
 
-- **The open file's location.** Orca doesn't tell plugins the file's path, so the plugin looks through your local workspaces, the focused one first, for the file with the same text. It only opens files of the right size, and the comparison happens on your computer.
+- **The open file's location.** Orca doesn't tell plugins the file's path, so the plugin looks through your local workspaces, the focused one first, for the file with the same text. It only opens files of the types Code Explainer edits and of the right size, and the comparison happens on your computer. It remembers where it found each file, so a file you open again needs no search.
 - **Project instructions:** `CLAUDE.md` for Claude Code or `AGENTS.md` for Codex, from the project root and the folders down to the selected file. At the root it falls back to the other file when yours is missing.
 - **Files the agent asks for**, through the file server, inside that project only.
 
@@ -172,6 +173,7 @@ Only what your agent sends to its provider (Anthropic or OpenAI) under your acco
 
 - **Conversations**, in Orca's storage for the plugin: the last 30 messages of each workspace (about 15 questions and their answers), the agent session to resume, and which instruction files were already sent. **New conversation** clears them.
 - **The agent's working folder**, one per workspace, in the cache folder above.
+- **File locations and language hints**, keyed by a fingerprint of the file's text, never the text itself. A location is stored per workspace, as `<workspace id>-<fingerprint>` with the path inside that workspace, and is checked against the file's current text before it's used. When you remove a worktree workspace, its locations are deleted. Up to 400 of each; the oldest are dropped first, which is also how a removed folder workspace's locations go, since Orca doesn't report those.
 - Claude Code and Codex keep their own session history, as they always do. That's how a conversation continues from one question to the next.
 
 Nothing is written to your project.
@@ -214,6 +216,7 @@ npm install
 npm run build        # bundles dist/ (npm run watch for unminified rebuilds)
 npm run types        # writes Orca's plugin typings into .orca/
 npm run typecheck
+npm test             # file lookup, caching and workspace selection checks
 orca plugin dev load .   # loads this folder into Orca; rebuilds apply on their own
 npm run reinstall    # builds and installs this folder as the copy Orca runs
 ```

@@ -1,34 +1,79 @@
 // Code Explainer worker: one conversation per workspace, explained by the Claude Code or Codex CLI,
 // whose only tools read that project folder (read-only, inside the folder, secrets excluded).
 import { createHash, randomUUID } from 'node:crypto'
+import { readFileSync } from 'node:fs'
 import { agentDirectory, agentOptions, runAgentTurn } from './agent-cli.mjs'
 import {
   formatExplanationRequest,
   loadExplainerContext,
   prepareExplainerPrompt
 } from './project-context.mjs'
-import { locateFile, projectFile, readProjectText } from './project-reader.mjs'
+import { fileHasText, locateFile, projectFile, readProjectText } from './project-reader.mjs'
 import { createWorkspaceMcp } from './workspace-mcp.mjs'
 import { EXPLAIN_MODES, isExplainMode } from '../src/explain-modes.mjs'
 
 /** How long a lookup may keep searching other workspaces after the focused one. */
 const LOCATE_BUDGET_MS = 5000
+/** The file types the plugin's editors open: only these can be the file shown in one. */
+const EDITOR_EXTENSIONS = new Set(
+  JSON.parse(
+    readFileSync(new URL('../orca-plugin.json', import.meta.url), 'utf8')
+  ).contributes.customEditors.flatMap((editor) =>
+    editor.extensions.map((extension) => extension.toLowerCase())
+  )
+)
+/** Where each text was last found, so a reopened file needs no search. */
+const LOCATIONS_KEY = 'locations'
+const LOCATIONS_KEPT = 400
 
 /**
- * The focused workspace's row. Orca 1.4.256 (host API 1.5) names it only by display name and
- * branch; newer hosts also give its id.
+ * The rows that could be the focused workspace. Orca 1.4.256 (host API 1.5) names it only by
+ * display name and branch, which several can share (every checkout of `main`); newer hosts also
+ * give its id.
  */
-function focusedWorkspace(workspaces, context) {
+function focusCandidates(workspaces, context) {
   if (!context) {
+    return []
+  }
+  const byId = context.workspaceId && workspaces.find((row) => row.id === context.workspaceId)
+  return byId
+    ? [byId]
+    : workspaces.filter(
+        (row) => row.name === context.displayName && (row.branch ?? '') === (context.branch ?? '')
+      )
+}
+
+/** Searches `workspaces` at once; the first to find the text wins and stops the others. */
+async function firstMatch(workspaces, fingerprint) {
+  if (workspaces.length === 0) {
     return null
   }
-  return (
-    workspaces.find((row) => context.workspaceId && row.id === context.workspaceId) ??
-    workspaces.find(
-      (row) => row.name === context.displayName && (row.branch ?? '') === (context.branch ?? '')
-    ) ??
-    null
-  )
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), LOCATE_BUDGET_MS)
+  try {
+    return await new Promise((resolve) => {
+      let pending = workspaces.length
+      for (const workspace of workspaces) {
+        locateFile(workspace.path, fingerprint, controller.signal, EDITOR_EXTENSIONS)
+          .then((paths) => {
+            if (paths.length > 0 && !controller.signal.aborted) {
+              controller.abort()
+              resolve({ workspace, paths })
+            }
+          })
+          .catch(() => undefined)
+          .finally(() => {
+            pending -= 1
+            if (pending === 0) {
+              resolve(null)
+            }
+          })
+      }
+    })
+  } finally {
+    clearTimeout(timer)
+    controller.abort()
+  }
 }
 
 const POST_INTERVAL_MS = 150
@@ -51,6 +96,74 @@ export default function activate(orca) {
   const conversations = new Map()
   const storageKey = (workspaceId) =>
     `conversation:${createHash('sha256').update(workspaceId).digest('hex').slice(0, 32)}`
+
+  async function savedLocations() {
+    const saved = await orca.storage.get(LOCATIONS_KEY).catch(() => null)
+    return saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {}
+  }
+
+  // Keyed `<workspace id>-<text hash>`: the same file in two worktrees is two entries, and a
+  // workspace's entries share its prefix. The hash is base 36, so the last `-` starts it.
+  const locationKey = (workspaceId, hash) => `${workspaceId}-${hash}`
+  const keyWorkspace = (key) => key.slice(0, Math.max(0, key.lastIndexOf('-')))
+
+  /** Where this text was found before in `workspaces`: workspace id → `{ relativePath, alsoMatches }`. */
+  async function rememberedPlaces(workspaces, hash) {
+    const locations = await savedLocations()
+    const places = new Map()
+    for (const workspace of workspaces) {
+      const place = locations[locationKey(workspace.id, hash)]
+      if (typeof place?.relativePath === 'string') {
+        places.set(workspace.id, {
+          relativePath: place.relativePath,
+          alsoMatches: Array.isArray(place.alsoMatches) ? place.alsoMatches : []
+        })
+      }
+    }
+    return places
+  }
+
+  /** Drops the locations of workspaces Orca no longer lists. */
+  async function forgetRemovedWorkspaces() {
+    const { workspaces, truncated } = await orca.host.call('workspace.list', {})
+    // A cut-off list would drop the workspaces past its end.
+    if (truncated) {
+      return
+    }
+    const listed = new Set(workspaces.map((workspace) => workspace.id))
+    const locations = await savedLocations()
+    const stale = Object.keys(locations).filter((key) => !listed.has(keyWorkspace(key)))
+    if (stale.length === 0) {
+      return
+    }
+    for (const key of stale) {
+      delete locations[key]
+    }
+    await orca.storage.set(LOCATIONS_KEY, locations)
+  }
+  // Why compare with the list: the event names the workspace by Orca's internal worktree id, not
+  // the id `workspace.list` gives and the keys use. Orca sends no event for folder workspaces;
+  // theirs age out under the cap.
+  orca.events?.on('workspace.removed', () =>
+    forgetRemovedWorkspaces().catch((error) =>
+      orca.log(`could not forget a removed workspace's files: ${error.message}`)
+    )
+  )
+
+  async function remember(workspaceId, hash, place) {
+    const locations = await savedLocations()
+    const key = locationKey(workspaceId, hash)
+    // Why delete first: a key set again moves to the end, so the newest survive the cap.
+    delete locations[key]
+    locations[key] = place
+    const keys = Object.keys(locations)
+    for (const key of keys.slice(0, Math.max(0, keys.length - LOCATIONS_KEPT))) {
+      delete locations[key]
+    }
+    await orca.storage
+      .set(LOCATIONS_KEY, locations)
+      .catch((error) => orca.log(`could not remember where a file is: ${error.message}`))
+  }
 
   async function defaultProvider() {
     const provider = await orca.settings.get('provider').catch(() => null)
@@ -332,19 +445,58 @@ export default function activate(orca) {
       throw hostError('invalid_params', 'A text fingerprint is required.')
     }
     const workspaces = await localWorkspaces()
-    const focused = focusedWorkspace(workspaces, await orca.host.call('workspace.readContext', {}))
-    const ordered = focused ? [focused, ...workspaces.filter((row) => row !== focused)] : workspaces
-    const deadline = Date.now() + LOCATE_BUDGET_MS
-    for (const workspace of ordered) {
-      const paths = await locateFile(workspace.path, fingerprint)
-      if (paths.length > 0) {
-        return { workspaceId: workspace.id, relativePath: paths[0], alsoMatches: paths.slice(1) }
+    const candidates = focusCandidates(
+      workspaces,
+      await orca.host.call('workspace.readContext', {})
+    )
+    // Only a workspace Orca singles out goes first: the same file may be in several worktrees.
+    const focused = candidates.length === 1 ? candidates[0] : null
+    const found = (workspace, relativePath, alsoMatches) => {
+      void remember(workspace.id, fingerprint.hash, { relativePath, alsoMatches })
+      return { workspaceId: workspace.id, relativePath, alsoMatches }
+    }
+    const places = await rememberedPlaces(workspaces, fingerprint.hash)
+    /** This workspace's remembered place for the text, if the file there still has it. */
+    const rememberedIn = async (workspace) => {
+      const place = places.get(workspace.id)
+      return place && (await fileHasText(workspace.path, place.relativePath, fingerprint))
+        ? place
+        : null
+    }
+
+    if (focused) {
+      const own = await rememberedIn(focused)
+      if (own) {
+        return found(focused, own.relativePath, own.alsoMatches)
       }
-      if (Date.now() > deadline) {
-        break
+      // Worktrees share their layout: where the text was in another one is the first guess here.
+      for (const { relativePath } of places.values()) {
+        if (await fileHasText(focused.path, relativePath, fingerprint)) {
+          return found(focused, relativePath, [])
+        }
+      }
+      const paths = await locateFile(focused.path, fingerprint, undefined, EDITOR_EXTENSIONS)
+      if (paths.length > 0) {
+        return found(focused, paths[0], paths.slice(1))
       }
     }
-    return { workspaceId: focused?.id ?? null, relativePath: null, alsoMatches: [] }
+    // The workspaces that could be the focused one come first: a file is opened from it.
+    const others = workspaces.filter((row) => row !== focused)
+    const likely = others.filter((row) => candidates.includes(row))
+    const unlikely = others.filter((row) => !candidates.includes(row))
+    for (const workspace of [...likely, ...unlikely]) {
+      const place = await rememberedIn(workspace)
+      if (place) {
+        return found(workspace, place.relativePath, place.alsoMatches)
+      }
+    }
+    // Searched only when no workspace has this text remembered.
+    const match =
+      (await firstMatch(likely, fingerprint)) ?? (await firstMatch(unlikely, fingerprint))
+    if (match) {
+      return found(match.workspace, match.paths[0], match.paths.slice(1))
+    }
+    return { workspaceId: candidates[0]?.id ?? null, relativePath: null, alsoMatches: [] }
   })
 
   orca.panels.handle('explain', async (input) => {
